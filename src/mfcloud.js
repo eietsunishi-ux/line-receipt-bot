@@ -16,7 +16,7 @@ export function getAuthorizationUrl() {
     client_id: process.env.MF_CLIENT_ID,
     redirect_uri: process.env.MF_REDIRECT_URI,
     response_type: "code",
-    scope: "office_setting:read expense:write",
+    scope: "office_setting:write user_setting:write transaction:write report:write account:write public_resource:read",
   });
   return `${BASE_URL}/oauth/authorize?${params}`;
 }
