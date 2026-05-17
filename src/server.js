@@ -16,6 +16,7 @@ import {
   createTransaction,
   uploadReceipt,
   findSubCategoryId,
+  validateTokenInfo,
 } from "./mfcloud.js";
 
 const app = express();
@@ -237,6 +238,31 @@ app.get("/setup", (_req, res) => {
     `<h2>MFクラウド経費 OAuth認証</h2>` +
     `<p><a href="${url}" target="_blank">こちらをクリックして認証</a></p>`
   );
+});
+
+// ─── デバッグ（トークン検証 & API接続テスト）────────────
+
+app.get("/debug", async (_req, res) => {
+  const results = { timestamp: new Date().toISOString() };
+
+  // 1. トークン検証
+  try {
+    results.tokenInfo = await validateTokenInfo();
+  } catch (e) {
+    results.tokenInfo = { error: e.message };
+  }
+
+  // 2. offices API テスト
+  if (results.tokenInfo?.valid) {
+    try {
+      const offices = await getOffice();
+      results.offices = { success: true, data: offices };
+    } catch (e) {
+      results.offices = { success: false, error: e.message };
+    }
+  }
+
+  res.json(results);
 });
 
 // ─── ヘルスチェック ──────────────────────────────────────

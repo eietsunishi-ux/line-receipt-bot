@@ -4,7 +4,8 @@
  */
 
 const BASE_URL = "https://expense.moneyforward.com";
-const API_BASE = `${BASE_URL}/api/external/v1`;
+const API_BASE_V1 = `${BASE_URL}/api/external/v1`;
+const API_BASE_V2 = `${BASE_URL}/api/external/v2`;
 
 // ─── OAuth2 認証 ─────────────────────────────────────────
 
@@ -86,6 +87,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TOKEN_FILE = join(__dirname, "..", "data", "token.json");
 
 export function loadToken() {
+  // 環境変数からの読み込み（Render等のephemeral環境用）
+  if (process.env.MF_ACCESS_TOKEN) {
+    return {
+      access_token: process.env.MF_ACCESS_TOKEN,
+      refresh_token: process.env.MF_REFRESH_TOKEN || null,
+      expires_at: process.env.MF_TOKEN_EXPIRES_AT
+        ? Number(process.env.MF_TOKEN_EXPIRES_AT)
+        : Date.now() + 86400000, // デフォルト24時間
+    };
+  }
+  // ファイルからの読み込み
   if (!existsSync(TOKEN_FILE)) return null;
   try {
     return JSON.parse(readFileSync(TOKEN_FILE, "utf-8"));
@@ -129,10 +141,38 @@ export async function getValidToken() {
   return token.access_token;
 }
 
+// ─── トークン検証 ────────────────────────────────────────
+
+/**
+ * アクセストークンの有効性を確認
+ * @returns {Object|null} トークン情報、無効ならnull
+ */
+export async function validateTokenInfo() {
+  const token = loadToken();
+  if (!token) return { valid: false, error: "トークン未設定" };
+
+  try {
+    const res = await fetch(`${BASE_URL}/oauth/token/info`, {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return { valid: false, error: `${res.status} ${err}` };
+    }
+    const info = await res.json();
+    return { valid: true, ...info };
+  } catch (e) {
+    return { valid: false, error: e.message };
+  }
+}
+
 // ─── API呼び出し ─────────────────────────────────────────
 
-async function apiRequest(method, path, body = null, accessToken = null) {
+async function apiRequest(method, path, body = null, { accessToken = null, apiVersion = "v1" } = {}) {
   const token = accessToken || (await getValidToken());
+  const baseUrl = apiVersion === "v2" ? API_BASE_V2 : API_BASE_V1;
+  const fullUrl = `${baseUrl}${path}`;
+
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: "application/json",
@@ -148,10 +188,12 @@ async function apiRequest(method, path, body = null, accessToken = null) {
     options.body = body;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, options);
+  console.log(`MF API リクエスト: ${method} ${fullUrl}`);
+  const res = await fetch(fullUrl, options);
 
   if (!res.ok) {
     const err = await res.text();
+    console.error(`MF API エラー詳細: ${method} ${fullUrl} → ${res.status} ${err}`);
     throw new Error(`MF API エラー: ${res.status} ${err}`);
   }
   return res.json();
@@ -165,10 +207,10 @@ export async function getOffice() {
 }
 
 /**
- * 自分のoffice_member_idを取得
+ * 自分のoffice_member_idを取得（v2 APIのみ）
  */
 export async function getMe(officeId) {
-  return apiRequest("GET", `/offices/${officeId}/me`);
+  return apiRequest("GET", `/offices/${officeId}/me`, null, { apiVersion: "v2" });
 }
 
 /**
