@@ -272,8 +272,14 @@ let categoryCache = null;
  */
 export async function findSubCategoryId(officeId, categoryName) {
   if (!categoryCache) {
-    const result = await getSubCategories(officeId);
-    categoryCache = result.ex_sub_categories || [];
+    try {
+      const result = await getSubCategories(officeId);
+      categoryCache = result.ex_sub_categories || [];
+    } catch (e) {
+      console.warn("経費科目一覧の取得に失敗（スキップ）:", e.message);
+      categoryCache = [];
+      return null;
+    }
   }
 
   // 部分一致で検索
