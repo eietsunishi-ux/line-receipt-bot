@@ -25,16 +25,20 @@ export function getAuthorizationUrl() {
  * 認証コードからアクセストークンを取得
  */
 export async function getAccessToken(authorizationCode) {
+  const credentials = Buffer.from(
+    `${process.env.MF_CLIENT_ID}:${process.env.MF_CLIENT_SECRET}`
+  ).toString("base64");
   const params = new URLSearchParams({
-    client_id: process.env.MF_CLIENT_ID,
-    client_secret: process.env.MF_CLIENT_SECRET,
     grant_type: "authorization_code",
     redirect_uri: process.env.MF_REDIRECT_URI,
     code: authorizationCode,
   });
   const res = await fetch(`${BASE_URL}/oauth/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${credentials}`,
+    },
     body: params.toString(),
   });
 
@@ -49,15 +53,19 @@ export async function getAccessToken(authorizationCode) {
  * リフレッシュトークンでアクセストークンを更新
  */
 export async function refreshAccessToken(refreshToken) {
+  const credentials = Buffer.from(
+    `${process.env.MF_CLIENT_ID}:${process.env.MF_CLIENT_SECRET}`
+  ).toString("base64");
   const params = new URLSearchParams({
-    client_id: process.env.MF_CLIENT_ID,
-    client_secret: process.env.MF_CLIENT_SECRET,
     grant_type: "refresh_token",
     refresh_token: refreshToken,
   });
   const res = await fetch(`${BASE_URL}/oauth/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${credentials}`,
+    },
     body: params.toString(),
   });
 
