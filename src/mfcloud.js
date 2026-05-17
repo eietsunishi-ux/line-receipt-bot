@@ -87,23 +87,23 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TOKEN_FILE = join(__dirname, "..", "data", "token.json");
 
 export function loadToken() {
-  // 環境変数からの読み込み（Render等のephemeral環境用）
-  if (process.env.MF_ACCESS_TOKEN) {
+  // ファイルからの読み込み（リフレッシュ後の最新トークン優先）
+  if (existsSync(TOKEN_FILE)) {
+    try {
+      return JSON.parse(readFileSync(TOKEN_FILE, "utf-8"));
+    } catch {
+      // ファイル破損時は環境変数にフォールバック
+    }
+  }
+  // 環境変数からの読み込み（Render等のephemeral環境用フォールバック）
+  if (process.env.MF_REFRESH_TOKEN) {
     return {
-      access_token: process.env.MF_ACCESS_TOKEN,
-      refresh_token: process.env.MF_REFRESH_TOKEN || null,
-      expires_at: process.env.MF_TOKEN_EXPIRES_AT
-        ? Number(process.env.MF_TOKEN_EXPIRES_AT)
-        : Date.now() + 86400000, // デフォルト24時間
+      access_token: "needs_refresh",
+      refresh_token: process.env.MF_REFRESH_TOKEN,
+      expires_at: 0, // 即座にリフレッシュを強制
     };
   }
-  // ファイルからの読み込み
-  if (!existsSync(TOKEN_FILE)) return null;
-  try {
-    return JSON.parse(readFileSync(TOKEN_FILE, "utf-8"));
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export function saveToken(tokenData) {
