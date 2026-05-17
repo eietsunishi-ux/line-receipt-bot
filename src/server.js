@@ -40,7 +40,7 @@ async function getMfConfig() {
   const me = await getMe(officeId);
   mfConfig = {
     officeId,
-    memberId: me.office_member.id,
+    memberId: me.id,
   };
   console.log(`MF設定: office=${officeId}, member=${mfConfig.memberId}`);
   return mfConfig;
