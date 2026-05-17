@@ -102,6 +102,12 @@ async function processReceipt(messageId, replyToken) {
       return;
     }
 
+    // ビジネスルール: 1万円未満の交際費は会議費に変更
+    if (receipt.amount < 10000 && receipt.category === "交際費") {
+      console.log(`カテゴリ補正: 交際費 → 会議費（金額: ¥${receipt.amount.toLocaleString()} < ¥10,000）`);
+      receipt.category = "会議費";
+    }
+
     // 3. MFクラウド経費に登録
     console.log("[3/4] MFクラウド経費に登録中...");
     const config = await getMfConfig();
