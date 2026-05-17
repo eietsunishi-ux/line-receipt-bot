@@ -1,0 +1,21 @@
+{
+  "name": "line-receipt-bot",
+  "version": "1.0.0",
+  "description": "LINE Bot でレシート撮影 → OCR → MFクラウド経費に自動登録",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@line/bot-sdk": "^9.0.0",
+    "express": "^4.21.0",
+    "dotenv": "^16.4.0",
+    "node-fetch": "^3.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
