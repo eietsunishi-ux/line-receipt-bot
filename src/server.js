@@ -257,6 +257,17 @@ app.get("/debug", async (_req, res) => {
     try {
       const offices = await getOffice();
       results.offices = { success: true, data: offices };
+
+      // 3. /me API テスト
+      const officeId = offices.offices?.[0]?.id;
+      if (officeId) {
+        try {
+          const me = await getMe(officeId);
+          results.me = { success: true, data: me };
+        } catch (e) {
+          results.me = { success: false, error: e.message };
+        }
+      }
     } catch (e) {
       results.offices = { success: false, error: e.message };
     }
