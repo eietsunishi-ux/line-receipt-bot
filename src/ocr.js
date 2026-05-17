@@ -16,7 +16,7 @@ export async function extractReceiptData(imageBuffer, contentType = "image/jpeg"
   const mediaType = contentType.includes("png") ? "image/png" : "image/jpeg";
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-3-5-sonnet-20241022",
     max_tokens: 1024,
     messages: [
       {
