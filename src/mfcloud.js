@@ -148,12 +148,11 @@ export async function getValidToken() {
  * @returns {Object|null} トークン情報、無効ならnull
  */
 export async function validateTokenInfo() {
-  const token = loadToken();
-  if (!token) return { valid: false, error: "トークン未設定" };
-
   try {
+    // getValidToken()で期限切れなら自動リフレッシュしてから検証
+    const accessToken = await getValidToken();
     const res = await fetch(`${BASE_URL}/oauth/token/info`, {
-      headers: { Authorization: `Bearer ${token.access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) {
       const err = await res.text();

@@ -230,7 +230,6 @@ app.get("/oauth/callback", async (req, res) => {
     saveToken(saved);
     res.send("✅ MFクラウド経費との連携が完了しました！<br>このページは閉じてOKです。");
     console.log("OAuth認証完了。トークンを保存しました。");
-    console.log(`[TOKEN_EXPORT] REFRESH_TOKEN=${saved.refresh_token}`);
   } catch (error) {
     console.error("OAuth エラー:", error);
     res.status(500).send(`認証エラー: ${error.message}`);
