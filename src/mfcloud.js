@@ -140,12 +140,13 @@ async function syncRefreshTokenToRender(refreshToken) {
     }
     const envVars = await getRes.json();
 
-    // MF_REFRESH_TOKENを更新した一覧を構築
-    const updated = envVars.map((v) =>
-      v.key === "MF_REFRESH_TOKEN"
-        ? { key: v.key, value: refreshToken }
-        : { key: v.key, value: v.value }
-    );
+    // Render API GET形式: [{envVar: {key, value}}] → PUT形式: [{key, value}] に変換
+    const updated = envVars.map((item) => {
+      const ev = item.envVar || item;
+      return ev.key === "MF_REFRESH_TOKEN"
+        ? { key: ev.key, value: refreshToken }
+        : { key: ev.key, value: ev.value };
+    });
 
     // 環境変数を一括更新（再デプロイなし）
     const putRes = await fetch(
@@ -162,7 +163,8 @@ async function syncRefreshTokenToRender(refreshToken) {
     if (putRes.ok) {
       console.log("✅ Render環境変数(MF_REFRESH_TOKEN)を同期しました");
     } else {
-      console.warn("Render環境変数の更新に失敗:", putRes.status);
+      const errBody = await putRes.text();
+      console.warn("Render環境変数の更新に失敗:", putRes.status, errBody);
     }
   } catch (e) {
     // 環境変数の同期失敗はログのみ（メイン処理は止めない）
