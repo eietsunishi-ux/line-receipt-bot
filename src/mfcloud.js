@@ -126,8 +126,8 @@ export async function getValidToken() {
     );
   }
 
-  // 期限チェック（期限の5分前に更新）
-  if (token.expires_at && Date.now() > token.expires_at - 300_000) {
+  // 期限チェック（期限の5分前に更新、expires_at未設定/0の場合も即リフレッシュ）
+  if (!token.expires_at || Date.now() > token.expires_at - 300_000) {
     console.log("アクセストークンを更新中...");
     const newToken = await refreshAccessToken(token.refresh_token);
     const saved = {
