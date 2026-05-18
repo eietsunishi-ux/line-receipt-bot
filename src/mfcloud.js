@@ -107,11 +107,67 @@ export function loadToken() {
 }
 
 export function saveToken(tokenData) {
+  // 1. ローカルファイルに保存（同一インスタンス内での再利用用）
   const dir = dirname(TOKEN_FILE);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(TOKEN_FILE, JSON.stringify(tokenData, null, 2));
+
+  // 2. Render環境変数を更新（サーバー再起動後もトークンが残るように）
+  if (tokenData.refresh_token && process.env.RENDER_API_KEY && process.env.RENDER_SERVICE_ID) {
+    syncRefreshTokenToRender(tokenData.refresh_token);
+  }
+}
+
+/**
+ * Render APIでMF_REFRESH_TOKEN環境変数を最新値に更新
+ * サーバー再起動・再デプロイ後もトークンが失われないようにする
+ */
+async function syncRefreshTokenToRender(refreshToken) {
+  try {
+    const serviceId = process.env.RENDER_SERVICE_ID;
+    const apiKey = process.env.RENDER_API_KEY;
+
+    // 現在の環境変数一覧を取得
+    const getRes = await fetch(
+      `https://api.render.com/v1/services/${serviceId}/env-vars`,
+      { headers: { Authorization: `Bearer ${apiKey}` } }
+    );
+    if (!getRes.ok) {
+      console.warn("Render環境変数の取得に失敗:", getRes.status);
+      return;
+    }
+    const envVars = await getRes.json();
+
+    // MF_REFRESH_TOKENを更新した一覧を構築
+    const updated = envVars.map((v) =>
+      v.key === "MF_REFRESH_TOKEN"
+        ? { key: v.key, value: refreshToken }
+        : { key: v.key, value: v.value }
+    );
+
+    // 環境変数を一括更新（再デプロイなし）
+    const putRes = await fetch(
+      `https://api.render.com/v1/services/${serviceId}/env-vars`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updated),
+      }
+    );
+    if (putRes.ok) {
+      console.log("✅ Render環境変数(MF_REFRESH_TOKEN)を同期しました");
+    } else {
+      console.warn("Render環境変数の更新に失敗:", putRes.status);
+    }
+  } catch (e) {
+    // 環境変数の同期失敗はログのみ（メイン処理は止めない）
+    console.warn("Render環境変数の同期エラー:", e.message);
+  }
 }
 
 /**
