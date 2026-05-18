@@ -14,6 +14,7 @@ import {
   getOffice,
   getMe,
   createTransaction,
+  updateTransaction,
   uploadReceipt,
   findSubCategoryId,
   validateTokenInfo,
@@ -21,6 +22,10 @@ import {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ─── 直近の取引記録（修正用）────────────────────────────────
+
+const lastTransactions = new Map(); // userId → { txId, officeId, receipt }
 
 // ─── LINE設定 ────────────────────────────────────────────
 
@@ -84,9 +89,70 @@ async function getImageContent(messageId) {
   return { buffer, contentType };
 }
 
+// ─── 修正処理 ───────────────────────────────────────────
+
+async function handleCorrection(text, replyToken, userId) {
+  try {
+    const last = lastTransactions.get(userId);
+    if (!last) {
+      await replyMessage(replyToken, "修正できる経費がありません。\n先にレシートを送信してください。");
+      return;
+    }
+
+    // 「修正 品目:〇〇」「修正 支払先:〇〇」「修正 金額:1000」をパース
+    const content = text.replace(/^修正\s*/, "");
+    const updates = {};
+    const results = [];
+
+    // 品目
+    const itemMatch = content.match(/品目[:：]\s*(.+?)(?=\s+\S+[:：]|$)/);
+    if (itemMatch) {
+      updates.memo = `品目: ${itemMatch[1].trim()}`;
+      results.push(`📝 品目 → ${itemMatch[1].trim()}`);
+    }
+
+    // 支払先
+    const payeeMatch = content.match(/支払先[:：]\s*(.+?)(?=\s+\S+[:：]|$)/);
+    if (payeeMatch) {
+      updates.payee = payeeMatch[1].trim();
+      results.push(`🏪 支払先 → ${payeeMatch[1].trim()}`);
+    }
+
+    // 金額
+    const amountMatch = content.match(/金額[:：]\s*(\d+)/);
+    if (amountMatch) {
+      updates.value = Number(amountMatch[1]);
+      results.push(`💰 金額 → ¥${Number(amountMatch[1]).toLocaleString()}`);
+    }
+
+    if (results.length === 0) {
+      await replyMessage(
+        replyToken,
+        "修正内容を認識できませんでした。\n\n以下の形式で送信してください：\n「修正 品目:アイスコーヒー」\n「修正 支払先:スターバックス」\n「修正 金額:500」"
+      );
+      return;
+    }
+
+    await updateTransaction(last.officeId, last.txId, updates);
+
+    await replyMessage(
+      replyToken,
+      `✅ 経費を修正しました！\n\n${results.join("\n")}`
+    );
+    console.log(`修正完了: txId=${last.txId}, updates=${JSON.stringify(updates)}`);
+
+  } catch (error) {
+    console.error("修正エラー:", error);
+    await replyMessage(
+      replyToken,
+      `❌ 修正に失敗しました。\n\nエラー: ${error.message}`
+    );
+  }
+}
+
 // ─── メイン処理：レシート → OCR → MF経費登録 ─────────────
 
-async function processReceipt(messageId, replyToken) {
+async function processReceipt(messageId, replyToken, userId) {
   try {
     // 1. LINEから画像を取得
     console.log(`[1/4] 画像取得中... messageId=${messageId}`);
@@ -143,7 +209,16 @@ async function processReceipt(messageId, replyToken) {
       }
     }
 
-    // 5. 結果を返信
+    // 5. 直近の取引情報を保存（修正用）
+    if (txId && userId) {
+      lastTransactions.set(userId, {
+        txId,
+        officeId: config.officeId,
+        receipt,
+      });
+    }
+
+    // 6. 結果を返信
     const lines = [
       "✅ 経費を登録しました！",
       "",
@@ -156,6 +231,8 @@ async function processReceipt(messageId, replyToken) {
     if (receipt.confidence === "low") {
       lines.push("", "⚠️ 読み取り精度が低めです。MFクラウドで内容を確認してください。");
     }
+    lines.push("", "✏️ 修正する場合は以下の形式で送信：");
+    lines.push("「修正 品目:〇〇」「修正 支払先:〇〇」");
 
     await replyMessage(replyToken, lines.join("\n"));
     console.log("登録完了！");
@@ -187,13 +264,18 @@ app.post("/webhook", async (req, res) => {
 
   // イベント処理（非同期）
   for (const event of body.events) {
+    const userId = event.source?.userId;
+
     if (event.type === "message" && event.message.type === "image") {
       // 画像メッセージ → レシート処理
-      processReceipt(event.message.id, event.replyToken);
+      processReceipt(event.message.id, event.replyToken, userId);
     } else if (event.type === "message" && event.message.type === "text") {
-      // テキストメッセージ → ヘルプ
-      const text = event.message.text;
-      if (text === "ヘルプ" || text === "help") {
+      const text = event.message.text.trim();
+
+      if (text.startsWith("修正")) {
+        // 修正コマンド
+        await handleCorrection(text, event.replyToken, userId);
+      } else if (text === "ヘルプ" || text === "help") {
         await replyMessage(
           event.replyToken,
           "📸 レシートの写真を送ってください！\n\n" +
@@ -201,7 +283,10 @@ app.post("/webhook", async (req, res) => {
           "📌 コツ:\n" +
           "・レシート全体が写るように\n" +
           "・なるべく明るい場所で\n" +
-          "・シワを伸ばして撮影"
+          "・シワを伸ばして撮影\n\n" +
+          "✏️ 登録後の修正:\n" +
+          "「修正 品目:〇〇」\n" +
+          "「修正 支払先:〇〇」"
         );
       } else {
         await replyMessage(

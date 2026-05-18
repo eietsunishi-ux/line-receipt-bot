@@ -244,6 +244,27 @@ export async function createTransaction(officeId, memberId, data) {
 }
 
 /**
+ * 経費明細を更新（品目・支払先・金額等の修正）
+ * @param {string} officeId
+ * @param {string} transactionId
+ * @param {Object} data - 更新するフィールド { memo, payee, value, date, subCategoryId }
+ */
+export async function updateTransaction(officeId, transactionId, data) {
+  const body = { ex_transaction: {} };
+  if (data.memo !== undefined) body.ex_transaction.memo = data.memo;
+  if (data.payee !== undefined) body.ex_transaction.payee = data.payee;
+  if (data.value !== undefined) body.ex_transaction.value = data.value;
+  if (data.date !== undefined) body.ex_transaction.date = data.date;
+  if (data.subCategoryId !== undefined) body.ex_transaction.sub_category_id = data.subCategoryId;
+
+  return apiRequest(
+    "PUT",
+    `/offices/${officeId}/ex_transactions/${transactionId}`,
+    body
+  );
+}
+
+/**
  * 経費明細にレシート画像を添付
  * @param {string} officeId
  * @param {string} transactionId - 登録済み経費明細のID
